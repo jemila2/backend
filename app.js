@@ -437,15 +437,17 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Server setup
+// Server setup - FIXED VERSION
 const PORT = process.env.PORT || 3001;
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(` Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
   console.log('Environment:', {
     NODE_ENV: process.env.NODE_ENV,
     DB: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
   });
 });
+
+
 
 // Process event handlers
 process.on('unhandledRejection', err => {
