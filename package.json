@@ -1,16 +1,16 @@
+
+
 {
   "name": "backend",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon app",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
-    "build": "node app.js",
-     "start": "node server.js",
-      "dev": "nodemon server.js",
-       "build": "npm install" 
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "npm install"
   },
   "author": "",
   "license": "ISC",
@@ -19,7 +19,6 @@
     "axios": "^1.10.0",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
-     "node": "18.x" ,
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
@@ -41,7 +40,7 @@
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {
- 
+    "gh-pages": "^6.3.0"
   },
   "keywords": [],
   "description": ""
