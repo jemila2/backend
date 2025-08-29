@@ -1,14 +1,14 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "server.js",
+    "main": "app.js",
   "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "build": "npm install",
     "test": "echo \"Error: no test specified\" && exit 1",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist",
-    "start": "node app.js",
-    "dev": "nodemon server.js",
-    "build": "npm install"
+    "deploy": "gh-pages -d dist"
   },
   "author": "",
   "license": "ISC",
