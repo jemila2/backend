@@ -1,4 +1,7 @@
 
+
+
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
@@ -39,18 +42,13 @@ router.post('/register-admin', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // Verify admin secret key
     const expectedSecretKey = process.env.ADMIN_SECRET_KEY || 'ADMIN_SETUP_2024';
     if (secretKey !== expectedSecretKey) {
       return res.status(403).json({ error: 'Invalid admin secret key' });
     }
     
-    // Check if we already have an admin
-    const existingAdminCount = await User.countDocuments({ role: 'admin' });
-    if (existingAdminCount > 0) {
-      return res.status(403).json({ error: 'Admin already exists. Cannot create additional admin accounts.' });
-    }
-    
-    // Check if user already exists
+    // Check if user already exists (by email)
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(409).json({ error: 'User with this email already exists' });
@@ -325,5 +323,6 @@ router.get('/dashboard/stats', async (req, res) => {
     });
   }
 });
+
 
 module.exports = router;
