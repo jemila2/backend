@@ -28,6 +28,7 @@ requiredEnvVars.forEach(env => {
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
+      'https://jemila2.github.io/cdtheclientt/',
       'https://cdclient-6.onrender.com',
       'https://cdclient.vercel.app',
       'https://jemila2.github.io',
