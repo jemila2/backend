@@ -206,6 +206,14 @@ app.get('/', (req, res) => {
   }
 });
 
+// Server-side configuration
+app.use((req, res, next) => {
+  if (req.url.endsWith('.jsx')) {
+    res.type('application/javascript');
+  }
+  next();
+});
+
 // Serve static files if directory exists
 if (staticPath) {
   app.use(express.static(staticPath));
