@@ -254,9 +254,9 @@ app.get('/', (req, res) => {
       timestamp: new Date().toISOString(),
       endpoints: {
         health: '/api/health',
-        auth: '/api/auth',
+        auth: '/auth',
         admin: '/api/admin',
-        users: '/api/users'
+        users: '/users'
       }
     });
   }
