@@ -34,7 +34,7 @@ router.get('/admins/count', async (req, res) => {
   }
 });
 
-router.post('/register-admin', async (req, res) => {
+router.post('/api/register-admin', async (req, res) => {
   try {
     const { name, email, password, secretKey } = req.body;
     
@@ -326,3 +326,4 @@ router.get('/dashboard/stats', async (req, res) => {
 
 
 module.exports = router;
+
