@@ -177,7 +177,7 @@ const employeeRequestsRoutes = require('./routes/employeeRequests');
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employee-requests', employeeRequestsRoutes);
-app.use('/users', userRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -256,7 +256,7 @@ app.get('/', (req, res) => {
         health: '/api/health',
         auth: '/auth',
         admin: '/api/admin',
-        users: '/users'
+        users: '/api/api/users'
       }
     });
   }
