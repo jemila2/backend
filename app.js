@@ -1,4 +1,3 @@
-
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
@@ -12,8 +11,6 @@ const hpp = require('hpp');
 const xss = require('xss-clean');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 
 const app = express();
 
@@ -26,106 +23,66 @@ requiredEnvVars.forEach(env => {
   }
 });
 
+// Trust proxy - set only once
+app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : 0);
+
 // Enhanced CORS Configuration
-const corsOptions = {
+app.use(cors({
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
     const allowedOrigins = [
       'https://jemila2.github.io',
-      'https://jemila2.github.io/cdtheclientt/',
       'http://localhost:3000',
       'http://localhost:3001'
     ];
     
-    // Allow requests with no origin (like mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       console.warn('⚠️ CORS blocked request from origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'Cache-Control',
-    'X-Requested-With',
-    'Accept',
-    'Origin'
-  ],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-
-// Trust proxy
-app.set('trust proxy', 1);
+  credentials: true
+}));
+app.options('*', cors());
 
 // Middleware setup
 app.use(helmet());
 app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Handle preflight requests
-
-app.set('trust proxy', 1);
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
   max: 1000, 
   message: 'Too many requests from this IP, please try again later',
-  keyGenerator: (req) => {
-    // Use X-Forwarded-For header if available (behind proxy)
-    return req.headers['x-forwarded-for'] || req.ip;
-  }
+  validate: { trustProxy: false }
 });
 app.use('/api', limiter);
 
 // Body parsing middleware
-app.use(express.json({
-  limit: '10mb',
-  verify: (req, res, buf) => {
-    try {
-      JSON.parse(buf.toString());
-    } catch (e) {
-      res.status(400).json({ error: 'Invalid JSON' });
-      throw new Error('Invalid JSON');
-    }
-  }
-}));
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Logging middleware
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-  app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    if (req.method === 'POST' || req.method === 'PUT') {
-      console.log('Request Body:', req.body);
-    }
-    next();
-  });
-}
+// Debugging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  if (req.method === 'POST' || req.method === 'PUT') {
+    console.log('Request Body:', req.body);
+  }
+  next();
+});
 
-// Serve static files from React build (if exists)
-const buildPath = path.join(__dirname, 'client/build');
-const cdclientBuildPath = path.join(__dirname, 'cdclient/build');
-
-// Check which build directory exists
-let staticPath = null;
-if (fs.existsSync(buildPath)) {
-  staticPath = buildPath;
-  console.log('✅ Serving static files from client/build');
-} else if (fs.existsSync(cdclientBuildPath)) {
-  staticPath = cdclientBuildPath;
-  console.log('✅ Serving static files from cdclient/build');
-} else {
-  console.log('ℹ️ Client build directory not found. API-only mode.');
-}
+// Handle duplicate API prefix
+app.use('/api/api', (req, res, next) => {
+  req.url = req.url.replace('/api', '');
+  next();
+});
 
 // MongoDB Connection with improved error handling
 const connectDB = async () => {
@@ -139,8 +96,6 @@ const connectDB = async () => {
     console.log(`Attempting MongoDB connection to: ${mongoURI.replace(/:[^:]*@/, ':********@')}`);
     
     const conn = await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
@@ -199,34 +154,50 @@ app.use('/api/payroll', payrollRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/invoices', invoiceRoutes);
 
-
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+  });
+});
 
 // Root endpoint
 app.get('/', (req, res) => {
-  if (staticPath) {
-    // If we have static files, serve the index.html
-    res.sendFile(path.join(staticPath, 'index.html'));
-  } else {
-    // API-only mode response
-    res.json({
-      message: 'Backend API server is running',
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      endpoints: {
-        health: '/api/health',
-        auth: '/api/auth',
-        admin: '/api/admin',
-        users: '/api/users'
-      }
-    });
-  }
+  res.json({
+    message: 'Backend API server is running',
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      admin: '/api/admin',
+      users: '/api/users'
+    }
+  });
 });
 
 // Serve static files if directory exists
-if (staticPath) {
+const buildPath = path.join(__dirname, 'client/build');
+const cdclientBuildPath = path.join(__dirname, 'cdclient/build');
+
+// Check which build directory exists
+let staticPath = null;
+if (fs.existsSync(buildPath)) {
+  staticPath = buildPath;
+  console.log('✅ Serving static files from client/build');
   app.use(express.static(staticPath));
-  
-  // Handle client-side routing for all other routes
+} else if (fs.existsSync(cdclientBuildPath)) {
+  staticPath = cdclientBuildPath;
+  console.log('✅ Serving static files from cdclient/build');
+  app.use(express.static(staticPath));
+} else {
+  console.log('ℹ️ Client build directory not found. API-only mode.');
+}
+
+// Handle client-side routing for all other routes
+if (staticPath) {
   app.get('*', (req, res) => {
     res.sendFile(path.join(staticPath, 'index.html'));
   });
@@ -287,7 +258,7 @@ async function startServer() {
     }
     
     // Then start the server
-    const PORT = process.env.PORT || 3001;
+    const PORT = process.env.PORT || 10000;
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
       console.log('Environment:', {
