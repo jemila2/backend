@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
@@ -18,58 +17,33 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 const User = require('../models/UserModel');
 const Task = require('../models/Task');
 
+// Public routes
 router.post('/register', register);
 router.post('/login', login);
+router.post('/forgot-password', forgotPassword);
+router.get('/verify-reset-token/:token', verifyResetToken);
+router.post('/reset-password', resetPassword);
 
-router.post('/forgot-password' );
-router.get('/verify-reset-token/:token');
-router.post('/reset-password');
-
-router.get('/users', async (req, res) => {
-  try {
-    const users = await User.find(); // Make sure this returns data
-    console.log('Fetched users:', users); // Debug log
-    res.json(users); // Ensure you're sending response
-  } catch (err) {
-    console.error('Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-router.get('/:id/tasks', protect, async (req, res) => {
-  // Prevent caching of task data
-  res.setHeader('Cache-Control', 'no-store');
-  
-  // ... rest of your task fetching logic
-});
-
-
-router.get('/', async (req, res) => {
+// Get all users (admin only)
+router.get('/users', protect, authorize('admin'), async (req, res) => {
   try {
     const users = await User.find().select('-password');
-    
-    // Set headers to prevent caching
-    res.set({
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    });
-    
+    console.log('Fetched users:', users);
     res.json({
       success: true,
+      count: users.length,
       data: users
     });
   } catch (err) {
-    console.error('Error fetching users:', err);
-    res.status(500).json({
+    console.error('Error:', err);
+    res.status(500).json({ 
       success: false,
-      error: 'Server error'
+      error: err.message 
     });
   }
 });
 
-
+// Get current user profile
 router.get('/me', protect, (req, res) => {
   // Set headers to prevent caching
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -88,10 +62,45 @@ router.get('/me', protect, (req, res) => {
   });
 });
 
+// Update user profile
 router.put('/update', protect, updateProfile);
+
+// Change password
 router.put('/change-password', protect, changePassword);
 
+// Get tasks for a specific user
+router.get('/:id/tasks', protect, async (req, res) => {
+  try {
+    // Prevent caching of task data
+    res.setHeader('Cache-Control', 'no-store');
+    
+    // Check if user is accessing their own tasks or is an admin
+    if (req.user.role !== 'admin' && req.user._id.toString() !== req.params.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to access these tasks'
+      });
+    }
+    
+    const tasks = await Task.find({ assignee: req.params.id })
+      .populate('assignee', 'name email')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      count: tasks.length,
+      data: tasks
+    });
+  } catch (err) {
+    console.error('Error fetching user tasks:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error'
+    });
+  }
+});
 
+// Get all tasks (admin only)
 router.get('/tasks', protect, authorize('admin'), async (req, res) => {
   try {
     const tasks = await Task.find().populate('assignee', 'name email');
@@ -109,6 +118,7 @@ router.get('/tasks', protect, authorize('admin'), async (req, res) => {
   }
 });
 
+// Get user by ID (admin only)
 router.get('/:id', protect, authorize('admin'), async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
@@ -131,6 +141,7 @@ router.get('/:id', protect, authorize('admin'), async (req, res) => {
   }
 });
 
+// Update user role (admin only)
 router.put('/:id/role', protect, authorize('admin'), async (req, res) => {
   try {
     const { role } = req.body;
@@ -165,6 +176,71 @@ router.put('/:id/role', protect, authorize('admin'), async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Server Error'
+    });
+  }
+});
+
+// Token refresh endpoint
+router.post('/refresh', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: 'Token required'
+      });
+    }
+    
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Find the user
+    const user = await User.findById(decoded.id).select('-password');
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Generate a new token
+    const newToken = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    );
+    
+    res.json({
+      success: true,
+      token: newToken,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid token'
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        error: 'Token expired'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Server error during token refresh'
     });
   }
 });
