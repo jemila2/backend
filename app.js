@@ -203,8 +203,8 @@ app.get('/', (req, res) => {
 });
 
 // Serve static files if directory exists (AFTER API routes)
-const buildPath = path.join(__dirname, 'client/build');
-const cdclientBuildPath = path.join(__dirname, 'cdclient/build');
+const buildPath = path.join(__dirname, 'cliente/build');
+const cdclientBuildPath = path.join(__dirname, 'cliente/build');
 
 let staticPath = null;
 if (fs.existsSync(buildPath)) {
@@ -249,7 +249,7 @@ async function startServer() {
   try {
     const dbConnected = await connectDB();
     
-    const PORT = process.env.PORT || 10000;
+    const PORT = process.env.PORT || 3001;
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log('Environment:', {
