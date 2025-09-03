@@ -277,6 +277,9 @@ app.all('/api/*', (req, res) => {
   });
 });
 
+
+app.set('trust proxy', 1); // Trust the first proxy
+app.use(helmet());
 // Error handling middleware
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
