@@ -30,12 +30,7 @@ const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
       'https://jemila2.github.io/cdtheclientt/',
-      'https://cdclient-6.onrender.com',
-      'https://cdclient.vercel.app',
-      'https://jemila2.github.io',
-      'http://localhost:5173',
-      'http://localhost:3001',
-      'http://localhost:3000'
+      'http://localhost:3001'
     ];
     
     // Allow requests with no origin (like mobile apps, Postman, etc.)
