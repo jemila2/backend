@@ -1,5 +1,3 @@
-
-
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
@@ -13,6 +11,8 @@ const hpp = require('hpp');
 const xss = require('xss-clean');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 
@@ -29,7 +29,9 @@ requiredEnvVars.forEach(env => {
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
+      'https://jemila2.github.io',
       'https://jemila2.github.io/cdtheclientt/',
+      'http://localhost:3000',
       'http://localhost:3001'
     ];
     
@@ -56,6 +58,9 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
+// Trust proxy
+app.set('trust proxy', 1);
+
 // Middleware setup
 app.use(helmet());
 app.use(mongoSanitize());
@@ -68,7 +73,11 @@ app.options('*', cors(corsOptions)); // Handle preflight requests
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
   max: 1000, 
-  message: 'Too many requests from this IP, please try again later'
+  message: 'Too many requests from this IP, please try again later',
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For header if available (behind proxy)
+    return req.headers['x-forwarded-for'] || req.ip;
+  }
 });
 app.use('/api', limiter);
 
@@ -115,8 +124,6 @@ if (fs.existsSync(buildPath)) {
   console.log('ℹ️ Client build directory not found. API-only mode.');
 }
 
-
-
 // MongoDB Connection with improved error handling
 const connectDB = async () => {
   try {
@@ -152,6 +159,10 @@ const connectDB = async () => {
     return false;
   }
 };
+
+// Import models
+const User = require('./models/User');
+const Admin = require('./models/Admin');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -204,53 +215,206 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Test endpoint
-app.get('/api/test-cors', (req, res) => {
-  res.json({
-    message: 'CORS test successful!',
-    timestamp: new Date().toISOString(),
-    allowedOrigins: [
-      'https://cdclient-6.onrender.com',
-      'https://cdclient.vercel.app',
-      'https://jemila2.github.io',
-      'http://localhost:5173',
-      'http://localhost:3001'
-    ]
-  });
-});
-
-
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://jemila2.github.io');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+// Admin login endpoint
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    console.log('Admin login attempt:', { email });
+    
+    // Find admin by email
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      console.log('Admin not found:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Compare passwords
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      console.log('Invalid password for admin:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Generate token
+    const token = jwt.sign(
+      { id: admin._id, email: admin.email, role: 'admin' }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+    
+    console.log('Admin login successful:', email);
+    res.json({ 
+      token, 
+      user: { 
+        id: admin._id, 
+        email: admin.email, 
+        name: admin.name, 
+        role: 'admin' 
+      } 
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ error: 'Server error during login' });
   }
-  next();
 });
 
-// Add this to your server.js
-app.get('/api/debug/db', (req, res) => {
-  const states = {
-    0: 'Disconnected',
-    1: 'Connected',
-    2: 'Connecting',
-    3: 'Disconnecting'
-  };
-  
-  res.json({
-    dbState: states[mongoose.connection.readyState],
-    readyState: mongoose.connection.readyState,
-    dbHost: mongoose.connection.host,
-    dbName: mongoose.connection.name
-  });
+// User registration endpoint
+app.post('/api/users/register', async (req, res) => {
+  try {
+    const { name, email, password, phone } = req.body;
+    console.log('User registration attempt:', { name, email });
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists with this email' });
+    }
+    
+    // Hash password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    
+    // Create user
+    const user = new User({
+      name,
+      email,
+      password: hashedPassword,
+      phone,
+      role: 'customer'
+    });
+    
+    await user.save();
+    
+    // Generate token
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+    
+    console.log('User registration successful:', email);
+    res.status(201).json({ 
+      token, 
+      user: { 
+        id: user._id, 
+        email: user.email, 
+        name: user.name, 
+        role: user.role 
+      } 
+    });
+  } catch (error) {
+    console.error('User registration error:', error);
+    res.status(500).json({ error: 'Server error during registration' });
+  }
 });
 
-// Root endpoint - FIX FOR "Cannot GET /" ERROR
+// User login endpoint
+app.post('/api/users/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    console.log('User login attempt:', { email });
+    
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      console.log('User not found:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Compare passwords
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      console.log('Invalid password for user:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Generate token
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+    
+    console.log('User login successful:', email);
+    res.json({ 
+      token, 
+      user: { 
+        id: user._id, 
+        email: user.email, 
+        name: user.name, 
+        role: user.role 
+      } 
+    });
+  } catch (error) {
+    console.error('User login error:', error);
+    res.status(500).json({ error: 'Server error during login' });
+  }
+});
+
+// Token refresh endpoint
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization token required' });
+    }
+    
+    const token = authHeader.substring(7);
+    
+    try {
+      // Verify the existing token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      // Find user based on token payload
+      let user;
+      if (decoded.role === 'admin') {
+        user = await Admin.findById(decoded.id);
+      } else {
+        user = await User.findById(decoded.id);
+      }
+      
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+      
+      // Generate new token
+      const newToken = jwt.sign(
+        { id: user._id, email: user.email, role: decoded.role }, 
+        process.env.JWT_SECRET, 
+        { expiresIn: '7d' }
+      );
+      
+      res.json({ 
+        token: newToken, 
+        user: { 
+          id: user._id, 
+          email: user.email, 
+          name: user.name, 
+          role: decoded.role 
+        } 
+      });
+    } catch (jwtError) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(500).json({ error: 'Server error during token refresh' });
+  }
+});
+
+// Admin count endpoint
+app.get('/api/admin/admins/count', async (req, res) => {
+  try {
+    const count = await Admin.countDocuments();
+    res.json({ count });
+  } catch (error) {
+    console.error('Error counting admins:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Root endpoint
 app.get('/', (req, res) => {
   if (staticPath) {
     // If we have static files, serve the index.html
@@ -281,8 +445,6 @@ if (staticPath) {
   });
 }
 
- 
-
 // 404 handler for undefined API routes
 app.all('/api/*', (req, res) => {
   res.status(404).json({
@@ -291,9 +453,6 @@ app.all('/api/*', (req, res) => {
   });
 });
 
-
-app.set('trust proxy', 1); // Trust the first proxy
-app.use(helmet());
 // Error handling middleware
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
@@ -328,8 +487,6 @@ const uploadsDir = path.join(__dirname, 'uploads/invoices');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-
-
 
 // Database connection and server startup
 async function startServer() {
