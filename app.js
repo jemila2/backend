@@ -23,8 +23,9 @@ requiredEnvVars.forEach(env => {
   }
 });
 
-// Trust proxy - set only once
-app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : 0);
+// Trust proxy - set based on environment
+const isProduction = process.env.NODE_ENV === 'production';
+app.set('trust proxy', isProduction ? 1 : 0);
 
 // Enhanced CORS Configuration
 app.use(cors({
@@ -55,12 +56,26 @@ app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
 
+// Custom key generator for rate limiting that handles proxy correctly
+const keyGenerator = (req) => {
+  // If behind a proxy, use the X-Forwarded-For header
+  if (isProduction) {
+    return req.headers['x-forwarded-for'] || req.ip;
+  }
+  // For development, just use the IP
+  return req.ip;
+};
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
   max: 1000, 
   message: 'Too many requests from this IP, please try again later',
-  validate: { trustProxy: false }
+  keyGenerator: keyGenerator,
+  validate: {
+    trustProxy: isProduction, // Only validate proxy in production
+    xForwardedForHeader: isProduction // Only check X-Forwarded-For in production
+  }
 });
 app.use('/api', limiter);
 
@@ -263,7 +278,8 @@ async function startServer() {
       console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
       console.log('Environment:', {
         NODE_ENV: process.env.NODE_ENV,
-        DB: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+        DB: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+        TrustProxy: isProduction ? 'Enabled' : 'Disabled'
       });
       
       if (!dbConnected) {
