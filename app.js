@@ -220,6 +220,72 @@ app.get('/api/health', (req, res) => {
 
 
 
+// Add this right after your other route imports but BEFORE any catch-all routes
+app.post('/api/users/register', async (req, res) => {
+  try {
+    const { name, email, password, phone } = req.body;
+    console.log('Registration attempt:', { name, email });
+
+    // Input validation
+    if (!name || !email || !password) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Name, email, and password are required' 
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'User already exists with this email' 
+      });
+    }
+
+    // Hash password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Create user
+    const user = new User({
+      name,
+      email,
+      password: hashedPassword,
+      phone: phone || '',
+      role: 'customer'
+    });
+
+    await user.save();
+
+    // Generate token
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+
+    console.log('User registration successful:', email);
+    res.status(201).json({ 
+      success: true,
+      token, 
+      user: { 
+        id: user._id, 
+        email: user.email, 
+        name: user.name, 
+        role: user.role 
+      } 
+    });
+
+  } catch (error) {
+    console.error('User registration error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Server error during registration' 
+    });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   if (staticPath) {
