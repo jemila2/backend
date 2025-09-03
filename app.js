@@ -219,6 +219,20 @@ app.get('/api/test-cors', (req, res) => {
   });
 });
 
+
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://jemila2.github.io');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Add this to your server.js
 app.get('/api/debug/db', (req, res) => {
   const states = {
