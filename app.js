@@ -134,11 +134,12 @@ const connectDB = async () => {
 };
 
 // Import models
-const User = require('./models/User');
-const Admin = require('./models/Admin');
+const User = require('./models/UserModel');
+// const Admin = require('./models/');
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/userRoutes')
 const employeeRoutes = require('./routes/employeeRoutes');
 const orderRoutes = require('./routes/orderRoute');
 const adminRoutes = require('./routes/admin');
