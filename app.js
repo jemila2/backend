@@ -217,6 +217,7 @@ app.get('/api/health', (req, res) => {
 });
 
 
+
 // Root endpoint
 app.get('/', (req, res) => {
   if (staticPath) {
