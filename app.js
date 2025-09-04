@@ -14,6 +14,9 @@ const morgan = require('morgan');
 
 const app = express();
 
+// ✅ CRITICAL FIX: Trust proxy MUST be at the very top!
+app.set('trust proxy', 1);
+
 // Check required environment variables
 const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI'];
 requiredEnvVars.forEach(env => {
@@ -39,9 +42,6 @@ const connectDB = async () => {
     return false;
   }
 };
-
-// Trust proxy configuration for Render.com
-app.set('trust proxy', 1);
 
 // Enhanced CORS Configuration
 const corsOptions = {
@@ -78,19 +78,6 @@ app.use(hpp());
 // CORS middleware
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
-
-// Rate limiting with proper proxy configuration for Render
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 1000, 
-  message: 'Too many requests from this IP, please try again later',
-  validate: { 
-    trustProxy: true,
-    xForwardedForHeader: true
-  },
-  trustProxy: true // Add this to fix the X-Forwarded-For error
-});
-app.use('/api', limiter);
 
 // Body parsing middleware
 app.use(express.json({
@@ -140,6 +127,46 @@ app.use((req, res, next) => {
   next();
 });
 
+// ✅ FIXED: Rate limiting with proper proxy configuration
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 1000, 
+  message: 'Too many requests from this IP, please try again later',
+  validate: { 
+    trustProxy: true,
+    xForwardedForHeader: true
+  },
+  trustProxy: true,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api', limiter);
+
+// ================= TEMPORARY TEST ROUTES =================
+// Add these test routes to verify everything works
+app.post('/api/users/register', (req, res) => {
+  console.log('✅ TEST Registration received:', req.body);
+  res.json({
+    success: true,
+    message: 'TEST: Registration endpoint working!',
+    user: {
+      id: 'test-' + Date.now(),
+      name: req.body.name,
+      email: req.body.email,
+      phone: req.body.phone,
+      role: 'customer'
+    }
+  });
+});
+
+app.get('/api/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Test endpoint is working!',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ================= ROUTES =================
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -157,9 +184,9 @@ const taskRoutes = require('./routes/taskRoutes');
 const userRoutes = require('./routes/userRoutes');
 const employeeRequestsRoutes = require('./routes/employeeRequests');
 
-// API Routes - FIXED: Use consistent routing
+// API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes); // This handles /api/users/register
+app.use('/api/users', userRoutes);
 app.use('/api/employee-requests', employeeRequestsRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/employees', employeeRoutes);
@@ -194,7 +221,8 @@ app.get('/', (req, res) => {
       health: '/api/health',
       auth: '/api/auth',
       users: '/api/users',
-      admin: '/api/admin'
+      admin: '/api/admin',
+      test: '/api/test'
     }
   });
 });
@@ -206,9 +234,10 @@ app.all('/api/*', (req, res) => {
     status: 'fail',
     message: `API endpoint ${req.originalUrl} not found!`,
     availableEndpoints: {
+      health: '/api/health',
       auth: '/api/auth',
       users: '/api/users',
-      health: '/api/health'
+      test: '/api/test'
     }
   });
 });
@@ -240,6 +269,10 @@ const startServer = async () => {
         NODE_ENV: process.env.NODE_ENV || 'development',
         DB: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
       });
+      console.log('✅ Test endpoints available:');
+      console.log('   GET  /api/health');
+      console.log('   GET  /api/test');
+      console.log('   POST /api/users/register');
     });
 
     process.on('SIGTERM', () => {
