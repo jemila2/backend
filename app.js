@@ -26,13 +26,31 @@ requiredEnvVars.forEach(env => {
   }
 });
 
-// Enhanced CORS Configuration
+// Replace your current CORS configuration with this:
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
-      'https://jemila2.github.io/cdtheclientt/',
-      'http://localhost:3001'
+      'https://jemila2.github.io',
+      'https://jemila2.github.io/cdtheclientt',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5173' // Add Vite default port
     ];
+    
+     
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin || allowedOrigins.includes(origin) || origin.includes('localhost')) {
+      callback(null, true);
+    } else {
+      console.warn('⚠️ CORS blocked request from origin:', origin);
+      callback(null, true); // Temporarily allow all for debugging
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
     
     // Allow requests with no origin (like mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
@@ -153,6 +171,92 @@ const connectDB = async () => {
     return false;
   }
 };
+
+// Temporary registration endpoint for testing
+app.post('/api/users/register', async (req, res) => {
+  try {
+    console.log('Registration attempt:', req.body);
+    
+    const { name, email, password, phone } = req.body;
+    
+    // Basic validation
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and password are required'
+      });
+    }
+    
+    // Check if user already exists (simplified)
+    // In a real app, you'd check your database
+    
+    // Create user (simplified - in real app, hash password and save to DB)
+    const user = {
+      id: 'temp-' + Date.now(),
+      name,
+      email,
+      phone: phone || '',
+      role: 'customer'
+    };
+    
+    // Generate token (simplified)
+    const token = 'temp-token-' + Date.now();
+    
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful!',
+      user,
+      token
+    });
+    
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during registration'
+    });
+  }
+});
+
+// Temporary login endpoint for testing
+app.post('/api/users/login', async (req, res) => {
+  try {
+    console.log('Login attempt:', req.body);
+    
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+    
+    // Simple test response
+    const user = {
+      id: 'user-123',
+      name: 'Test User',
+      email,
+      role: 'customer'
+    };
+    
+    const token = 'test-token-' + Date.now();
+    
+    res.json({
+      success: true,
+      message: 'Login successful!',
+      user,
+      token
+    });
+    
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during login'
+    });
+  }
+});
 
 // Import routes
 const authRoutes = require('./routes/auth');
