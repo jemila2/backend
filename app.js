@@ -75,7 +75,7 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
-// Middleware setup
+
 app.use(helmet());
 app.use(mongoSanitize());
 app.use(xss());
