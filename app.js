@@ -145,7 +145,7 @@ const connectDB = async () => {
         'laundrycluster.xxbljuz.mongodb.net/Laundry?retryWrites=true&w=majority');
     }
     
-    console.log(`Attempting MongoDB connection to: ${mongoURI.replace(/:[^:]*@/, ':********@')}`);
+    console.log(`Attempting MongoDB connection to: ${mongoUR.includes('laundrycluster.xxbljuz.mongodb.net/Laundry?retryWrites=true&w=majoritylaundrycluster')}`);
     
     const conn = await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
@@ -407,7 +407,7 @@ async function startServer() {
     }
     
     // Then start the server
-    const PORT = process.env.PORT || 3001;
+    const PORT = process.env.PORT || 10000;
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
       console.log('Environment:', {
