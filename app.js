@@ -126,8 +126,7 @@ app.use((req, res, next) => {
   
   next();
 });
-
-// ✅ FIXED: Rate limiting with proper proxy configuration
+// Create the rate limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
   max: 1000, 
@@ -140,8 +139,16 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false
 });
-app.use('/api', limiter);
 
+// Apply rate limiting to most API routes, but EXCLUDE auth routes
+app.use('/api', (req, res, next) => {
+  // Skip rate limiting for auth endpoints
+  if (req.path.startsWith('/auth/')) {
+    return next();
+  }
+  // Apply rate limiting to all other API endpoints
+  limiter(req, res, next);
+});
 // ================= TEMPORARY TEST ROUTES =================
 // Add these test routes to verify everything works
 app.post('/api/users/register', (req, res) => {
