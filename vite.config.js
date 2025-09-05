@@ -11,7 +11,7 @@ export default defineConfig({
    base: './',
   server: {
     open: true,
-    port: 3001
+    port: 10000
   },
       fastRefresh: true,
   server: {
