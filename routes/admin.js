@@ -1,4 +1,3 @@
-
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
@@ -22,6 +21,23 @@ const {
 } = require('../controllers/adminController');
 
 const { getAllOrders } = require('../controllers/orderController');
+
+// ✅ PUBLIC ROUTE: Check if admin exists
+router.get('/admin-exists', async (req, res) => {
+  try {
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    res.json({
+      success: true,
+      adminExists: adminCount > 0
+    });
+  } catch (error) {
+    console.error('Error checking admin existence:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check admin existence'
+    });
+  }
+});
 
 // ✅ PUBLIC ROUTE: Allow admin registration only once
 router.post('/register-admin', async (req, res) => {
@@ -89,8 +105,16 @@ router.post('/register-admin', async (req, res) => {
 
     await adminUser.save();
 
-    // Generate token (adjust based on your auth system)
-    const token = adminUser.generateAuthToken(); // Or your token method
+    // Generate token using jwt directly
+    const token = jwt.sign(
+      { 
+        userId: adminUser._id, 
+        role: adminUser.role,
+        email: adminUser.email 
+      },
+      process.env.JWT_SECRET || 'fallback_secret_key_for_development',
+      { expiresIn: '24h' }
+    );
 
     res.status(201).json({
       success: true,
@@ -114,52 +138,28 @@ router.post('/register-admin', async (req, res) => {
   }
 });
 
-// ✅ Add endpoint to check if admin exists
-router.get('/admin-exists', async (req, res) => {
-  try {
-    const adminCount = await User.countDocuments({ role: 'admin' });
-    res.json({
-      success: true,
-      adminExists: adminCount > 0
-    });
-  } catch (error) {
-    console.error('Error checking admin existence:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to check admin existence'
-    });
-  }
-});
-
-
-// With:
-const token = jwt.sign(
-  { 
-    userId: adminUser._id, 
-    role: adminUser.role,
-    email: adminUser.email 
-  },
-  process.env.JWT_SECRET || 'fallback_secret_key_for_development',
-  { expiresIn: '24h' }
-);
-
+// ✅ PUBLIC ROUTE: Get admin count (optional)
 router.get('/admins/count', async (req, res) => {
   try {
     const adminCount = await User.countDocuments({ role: 'admin' });
-    res.json({ count: adminCount });
+    res.json({ 
+      success: true,
+      count: adminCount 
+    });
   } catch (error) {
     console.error('Error counting admins:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
-
-
-
-
+// ✅ PROTECTED ROUTES (only for existing admin)
 router.use(protect);
 router.use(authorize('admin'));
 
+// User management routes
 router.route('/users')
   .get(getAllUsers)
   .post(createUser);
@@ -171,12 +171,15 @@ router.route('/users/:id')
 
 router.put('/users/:id/role', updateUserRole);
 
+// Task management routes
 router.route('/tasks')
   .get(getAllTasks)
   .post(createTask);
 
+// Order management routes
 router.get('/orders', getAllOrders);
 
+// Additional admin routes
 router.get('/users', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -220,14 +223,12 @@ router.get('/users', async (req, res) => {
   }
 });
 
-
 router.get('/tasks', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     
-   
     let filter = {};
     if (req.query.status) {
       filter.status = req.query.status;
@@ -303,7 +304,6 @@ router.get('/orders', async (req, res) => {
     });
   }
 });
-
 
 router.put('/orders/:id/status', async (req, res) => {
   try {
@@ -386,14 +386,3 @@ router.get('/dashboard/stats', async (req, res) => {
 });
 
 module.exports = router;
-
-
-
-
-
-
-
-
-
-
-
