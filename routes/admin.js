@@ -1,6 +1,7 @@
-
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -16,91 +17,173 @@ const {
   deleteUser,
   updateUserRole,
   getAllTasks,
-  createTask,
+  createTask
 } = require('../controllers/adminController');
 
 const { getAllOrders } = require('../controllers/orderController');
 
+// ✅ PUBLIC ROUTES (must come BEFORE auth middleware)
+// ==================================================
+
+// ✅ Check if admin exists - PUBLIC
+router.get('/admin-exists', async (req, res) => {
+  try {
+    console.log('Checking if admin exists...');
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    console.log('Admin count:', adminCount);
+    
+    res.json({
+      success: true,
+      adminExists: adminCount > 0,
+      count: adminCount
+    });
+  } catch (error) {
+    console.error('Error checking admin existence:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check admin existence'
+    });
+  }
+});
+
+// ✅ Register first admin - PUBLIC
+router.post('/register-admin', async (req, res) => {
+  try {
+    console.log('Admin registration attempt:', req.body);
+    
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not connected. Please try again later.',
+        status: 'database_error'
+      });
+    }
+
+    const { name, email, password, secretKey } = req.body;
+
+    // ✅ CRITICAL: Check if any admin already exists
+    const existingAdmin = await User.findOne({ role: 'admin' });
+    if (existingAdmin) {
+      console.log('Admin already exists:', existingAdmin.email);
+      return res.status(400).json({
+        success: false,
+        error: 'Admin account already exists. Only one admin is allowed.',
+        status: 'admin_exists'
+      });
+    }
+
+    // Validate secret key
+    if (secretKey !== 'ADMIN_SETUP_2024') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid admin secret key',
+        status: 'invalid_secret'
+      });
+    }
+
+    // Validate required fields
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name, email, and password are required',
+        status: 'missing_fields'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: 'User already exists with this email',
+        status: 'user_exists'
+      });
+    }
+
+    // Create the one and only admin user
+    const hashedPassword = await bcrypt.hash(password, 12);
+    
+    const adminUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role: 'admin',
+      isVerified: true,
+      emailVerified: true
+    });
+
+    await adminUser.save();
+    console.log('New admin created:', adminUser.email);
+
+    // Generate token
+    const token = jwt.sign(
+      { 
+        userId: adminUser._id, 
+        role: adminUser.role,
+        email: adminUser.email 
+      },
+      process.env.JWT_SECRET || 'fallback_secret_key_for_development',
+      { expiresIn: '24h' }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Admin account created successfully',
+      user: {
+        id: adminUser._id,
+        name: adminUser.name,
+        email: adminUser.email,
+        role: adminUser.role
+      },
+      token
+    });
+
+  } catch (error) {
+    console.error('Admin registration error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      status: 'server_error'
+    });
+  }
+});
+
+// ✅ Get admin count - PUBLIC
 router.get('/admins/count', async (req, res) => {
   try {
     const adminCount = await User.countDocuments({ role: 'admin' });
-    res.json({ count: adminCount });
+    res.json({ 
+      success: true,
+      count: adminCount 
+    });
   } catch (error) {
     console.error('Error counting admins:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
   }
 });
 
-router.post('/register-admin', async (req, res) => {
-  try {
-    const { name, email, password, secretKey } = req.body;
-    
-    if (!name || !email || !password || !secretKey) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const expectedSecretKey = process.env.ADMIN_SECRET_KEY || 'ADMIN_SETUP_2024';
-    if (secretKey !== expectedSecretKey) {
-      return res.status(403).json({ error: 'Invalid admin secret key' });
-    }
-    
-    // Check if we already have an admin
-    const existingAdminCount = await User.countDocuments({ role: 'admin' });
-    if (existingAdminCount > 0) {
-      return res.status(403).json({ error: 'Admin already exists. Cannot create additional admin accounts.' });
-    }
-    
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      return res.status(409).json({ error: 'User with this email already exists' });
-    }
-    
-    // Hash password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-    
-    // Create new admin user
-    const newUser = new User({
-      name: name.trim(),
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      role: 'admin'
-    });
-    
-    await newUser.save();
-    
-    console.log('New admin user created:', { id: newUser._id, email: newUser.email });
-    
-    res.status(201).json({
-      message: 'Admin account created successfully',
-      user: { 
-        id: newUser._id, 
-        name: newUser.name, 
-        email: newUser.email, 
-        role: newUser.role 
-      }
-    });
-  } catch (error) {
-    console.error('Error creating admin account:', error);
-    
-    if (error.code === 11000) {
-      return res.status(409).json({ error: 'User with this email already exists' });
-    }
-    
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ error: errors.join(', ') });
-    }
-    
-    res.status(500).json({ error: 'Internal server error' });
-  }
+// ✅ HEALTH CHECK - PUBLIC
+router.get('/health', async (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Admin routes are working',
+    timestamp: new Date().toISOString()
+  });
 });
 
-
+// ✅ AUTH MIDDLEWARE (applies to all routes below this line)
+// ==================================================
 router.use(protect);
 router.use(authorize('admin'));
 
+// ✅ PROTECTED ROUTES (require admin authentication)
+// ==================================================
+
+// User management
 router.route('/users')
   .get(getAllUsers)
   .post(createUser);
@@ -112,13 +195,16 @@ router.route('/users/:id')
 
 router.put('/users/:id/role', updateUserRole);
 
+// Task management
 router.route('/tasks')
   .get(getAllTasks)
   .post(createTask);
 
+// Order management
 router.get('/orders', getAllOrders);
 
-router.get('/users', async (req, res) => {
+// Additional admin functionality
+router.get('/users-list', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -161,14 +247,12 @@ router.get('/users', async (req, res) => {
   }
 });
 
-
-router.get('/tasks', async (req, res) => {
+router.get('/tasks-list', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     
-   
     let filter = {};
     if (req.query.status) {
       filter.status = req.query.status;
@@ -202,7 +286,7 @@ router.get('/tasks', async (req, res) => {
   }
 });
 
-router.get('/orders', async (req, res) => {
+router.get('/orders-list', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -244,7 +328,6 @@ router.get('/orders', async (req, res) => {
     });
   }
 });
-
 
 router.put('/orders/:id/status', async (req, res) => {
   try {
@@ -326,4 +409,5 @@ router.get('/dashboard/stats', async (req, res) => {
   }
 });
 
+// ✅ Export the router
 module.exports = router;
