@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken'); // Add this import
 
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Name is required'],
     trim: true,
+    minlength: [2, 'Name must be at least 2 characters long'],
     maxlength: [50, 'Name cannot exceed 50 characters']
   },
   email: {
@@ -18,43 +19,64 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters'],
-    select: false
+    minlength: [6, 'Password must be at least 6 characters long']
   },
   phone: {
     type: String,
-    required: [true, 'Phone number is required'],
-    match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid phone number']
+    trim: true,
+    default: ''
   },
   role: {
     type: String,
-    enum: ['customer', 'employee', 'admin'],
+    enum: ['customer', 'employee', 'admin', 'supplier'],
     default: 'customer'
   },
-  isActive: {
+  status: {
+    type: String,
+    enum: ['active', 'inactive', 'suspended'],
+    default: 'active'
+  },
+  // ✅ Add these fields for better admin management
+  isVerified: {
     type: Boolean,
-    default: true
+    default: false
+  },
+  emailVerified: {
+    type: Boolean,
+    default: false
+  },
+  lastLogin: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
 });
 
-// Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  
-  try {
-    const salt = await bcrypt.genSalt(12);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
+// ✅ Add generateAuthToken method
+userSchema.methods.generateAuthToken = function() {
+  return jwt.sign(
+    { 
+      userId: this._id, 
+      role: this.role,
+      email: this.email 
+    },
+    process.env.JWT_SECRET || 'fallback_secret_key_for_development',
+    { expiresIn: '24h' }
+  );
+};
 
-// Compare password method
+// ✅ Add method to check password (if you need it later)
 userSchema.methods.comparePassword = async function(candidatePassword) {
+  // You'll need to install and require bcryptjs for this
+  const bcrypt = require('bcryptjs');
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+userSchema.methods.toJSON = function() {
+  const user = this.toObject();
+  delete user.password;
+  return user;
 };
 
 module.exports = mongoose.model('User', userSchema);
