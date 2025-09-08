@@ -73,8 +73,9 @@ router.post('/register-admin', async (req, res) => {
       });
     }
 
-    // Validate secret key
-    if (secretKey !== 'ADMIN_SETUP_2024') {
+    // ✅ FIXED: Use environment variable for secret key
+    const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY || 'ADMIN_SETUP_2024';
+    if (secretKey !== ADMIN_SECRET_KEY) {
       return res.status(400).json({
         success: false,
         error: 'Invalid admin secret key',
@@ -411,4 +412,3 @@ router.get('/dashboard/stats', async (req, res) => {
 
 // ✅ Export the router
 module.exports = router;
-
