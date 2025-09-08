@@ -4,6 +4,51 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/UserModel');
 
+
+// Token refresh endpoint
+router.post('/refresh', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Token required' });
+    }
+    
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Find the user
+    const user = await User.findById(decoded.userId || decoded.id).select('-password');
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+    
+    // Generate a new token
+    const newToken = jwt.sign(
+      { 
+        userId: user._id, 
+        email: user.email, 
+        role: user.role 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    res.json({
+      token: newToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
 // Register endpoint
 router.post('/register', async (req, res) => {
   try {
@@ -90,44 +135,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Token refresh endpoint
-router.post('/refresh', async (req, res) => {
-  try {
-    const { token } = req.body;
-    
-    if (!token) {
-      return res.status(401).json({ error: 'Token required' });
-    }
-    
-    // Verify the token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Find the user
-    const user = await User.findById(decoded.id).select('-password');
-    if (!user) {
-      return res.status(401).json({ error: 'User not found' });
-    }
-    
-    // Generate a new token
-    const newToken = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    
-    res.json({
-      token: newToken,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    console.error('Token refresh error:', error);
-    res.status(401).json({ error: 'Invalid token' });
-  }
-});
+
 
 module.exports = router;
+
