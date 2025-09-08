@@ -91,70 +91,6 @@ router.post('/register', async (req, res) => {
 });
 
 
-router.post('/register-admin', async (req, res) => {
-  try {
-    // Check database connection
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({
-        success: false,
-        error: 'Database not connected. Please try again later.',
-        status: 'database_error'
-      });
-    }
-
-    const { name, email, password, secretKey } = req.body;
-
-    // Check if any admin already exists
-    const existingAdmin = await User.findOne({ role: 'admin' });
-    if (existingAdmin) {
-      return res.status(400).json({
-        success: false,
-        error: 'Admin account already exists. Only one admin is allowed.',
-        status: 'admin_exists'
-      });
-    }
-
-    // Validate secret key
-    if (secretKey !== 'ADMIN_SETUP_2024') {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid admin secret key',
-        status: 'invalid_secret'
-      });
-    }
-
-    // Validate required fields
-    if (!name || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        error: 'Name, email, and password are required',
-        status: 'missing_fields'
-      });
-    }
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        error: 'User already exists with this email',
-        status: 'user_exists'
-      });
-    }
-
-    // Create the one and only admin user
-    const hashedPassword = await bcrypt.hash(password, 12);
-    
-    const adminUser = new User({
-      name,
-      email,
-      password: hashedPassword,
-      role: 'admin',
-      isVerified: true,
-      emailVerified: true
-    });
-
-    await adminUser.save();
 
 
     
@@ -182,4 +118,5 @@ router.get('/users', async (req, res) => {
   }
 });
 module.exports = router;
+
 
