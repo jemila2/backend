@@ -148,44 +148,43 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const User = require('../models/UserModel');
 
-// ✅ Token refresh endpoint
+// In your auth routes file
 router.post('/refresh', async (req, res) => {
   try {
-    const { token } = req.body;
+    const { refreshToken } = req.body;
     
-    if (!token) {
-      return res.status(401).json({ error: 'Token required' });
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token required' });
     }
     
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId || decoded.id).select('-password');
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId);
     
     if (!user) {
-      return res.status(401).json({ error: 'User not found' });
+      return res.status(401).json({ error: 'Invalid refresh token' });
     }
     
-    const newToken = jwt.sign(
-      { 
-        userId: user._id, 
-        email: user.email, 
-        role: user.role 
-      },
+    // Generate new access token
+    const newAccessToken = jwt.sign(
+      { userId: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '1h' }
     );
     
-    res.json({
-      token: newToken,
+    res.json({ 
+      token: newAccessToken,
       user: {
         id: user._id,
-        name: user.name,
         email: user.email,
+        name: user.name,
         role: user.role
       }
     });
+    
   } catch (error) {
     console.error('Token refresh error:', error);
-    res.status(401).json({ error: 'Invalid token' });
+    res.status(401).json({ error: 'Invalid refresh token' });
   }
 });
 
@@ -292,5 +291,6 @@ router.get('/me', async (req, res) => {
 });
 
 module.exports = router;
+
 
 
