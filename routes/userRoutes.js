@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/UserModel');
 const {
@@ -154,30 +156,8 @@ router.post('/register-admin', async (req, res) => {
 
     await adminUser.save();
 
-    // ✅ This will now work since generateAuthToken method exists
-    const token = adminUser.generateAuthToken();
 
-    res.status(201).json({
-      success: true,
-      message: 'Admin account created successfully',
-      user: {
-        id: adminUser._id,
-        name: adminUser.name,
-        email: adminUser.email,
-        role: adminUser.role
-      },
-      token
-    });
-
-  } catch (error) {
-    console.error('Admin registration error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      status: 'server_error'
-    });
-  }
-});
+    
 
 router.route('/')
   .get(protect, authorize('admin'), getAllUsers)
@@ -202,3 +182,4 @@ router.get('/users', async (req, res) => {
   }
 });
 module.exports = router;
+
