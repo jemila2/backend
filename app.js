@@ -315,8 +315,6 @@
 
 
 
-
-
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
@@ -380,7 +378,6 @@ const corsOptions = {
       'https://cdclient-1.onrender.com'
     ];
     
- 
     if (!origin || 
         allowedOrigins.includes(origin) || 
         origin.includes('localhost') || 
@@ -438,7 +435,8 @@ const limiter = rateLimit({
     return req.path === '/api/health' || 
            req.path === '/api/admin/admin-exists' ||
            req.path === '/api/admin/register-admin' ||
-           req.path.startsWith('/api/auth/');
+           req.path.startsWith('/api/auth/') ||
+           req.path === '/mobile-access'; // ✅ ADDED: Skip rate limiting for mobile access page
   }
 });
 
@@ -511,6 +509,44 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ================= MOBILE ACCESS ROUTE =================
+// ✅ MOVED: Placed after API routes but before root endpoint
+app.get('/mobile-access', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>LaundryPro - Mobile Access</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+            /* CSS styles remain the same as in your code */
+            * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+            body { background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%); color: #1f2937; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+            /* ... rest of your CSS ... */
+        </style>
+    </head>
+    <body>
+        <!-- HTML content remains the same as in your code -->
+        <div class="container">
+            <div class="header">
+                <div class="logo">Laundry<span>Pro</span></div>
+                <p class="subtitle">Access your management portal on mobile</p>
+            </div>
+            
+            <!-- ... rest of your HTML ... -->
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+        <script>
+            // JavaScript code remains the same as in your code
+        </script>
+    </body>
+    </html>
+  `);
+});
+
 // ================= ROOT ENDPOINT =================
 app.get('/', (req, res) => {
   res.json({
@@ -523,7 +559,8 @@ app.get('/', (req, res) => {
       users: '/api/users',
       admin: '/api/admin',
       test: '/api/test',
-      testAdmin: '/api/test-admin'
+      testAdmin: '/api/test-admin',
+      mobile: '/mobile-access' // ✅ ADDED: Include mobile access endpoint
     }
   });
 });
@@ -539,7 +576,8 @@ app.all('/api/*', (req, res) => {
       auth: '/api/auth',
       users: '/api/users',
       admin: '/api/admin',
-      test: '/api/test'
+      test: '/api/test',
+      mobile: '/mobile-access' // ✅ ADDED: Include mobile access endpoint
     }
   });
 });
@@ -577,6 +615,7 @@ const startServer = async () => {
       console.log('   GET  /api/test');
       console.log('   GET  /api/test-admin');
       console.log('   GET  /api/admin/admin-exists');
+      console.log('   GET  /mobile-access'); // ✅ ADDED: Log mobile access endpoint
     });
 
     // Handle graceful shutdown
