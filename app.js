@@ -369,7 +369,8 @@ const connectDB = async () => {
   }
 };
 
-// Enhanced CORS Configuration
+
+javascript
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
@@ -377,12 +378,15 @@ const corsOptions = {
       'https://jemila2.github.io/cdclient-1',
       'http://localhost:3000',
       'http://localhost:3001',
-      'http://localhost:5173',
+      'http://localhost:4173', // ← ADD THIS
       'https://cdclient-1.onrender.com'
     ];
     
     // Allow requests with no origin (like mobile apps, Postman, etc.)
-    if (!origin || allowedOrigins.includes(origin) || origin.includes('localhost') || origin.includes('github.io') || origin.includes('render.com')) {
+    if (!origin || allowedOrigins.includes(origin) || 
+        origin.includes('localhost') || 
+        origin.includes('github.io') || 
+        origin.includes('render.com')) {
       callback(null, true);
     } else {
       console.warn('⚠️ CORS blocked request from origin:', origin);
@@ -394,35 +398,6 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200
 };
-
-// ================= MIDDLEWARE SETUP =================
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: false, // Disable CSP for now
-  crossOriginEmbedderPolicy: false
-}));
-app.use(mongoSanitize());
-app.use(xss());
-app.use(hpp());
-
-// CORS middleware - MUST come early
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-// Body parsing middleware
-app.use(express.json({
-  limit: '10mb',
-  verify: (req, res, buf) => {
-    try {
-      JSON.parse(buf.toString());
-    } catch (e) {
-      res.status(400).json({ error: 'Invalid JSON' });
-      throw new Error('Invalid JSON');
-    }
-  }
-}));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(cookieParser());
 
 // Logging middleware
 app.use(morgan('combined'));
