@@ -369,8 +369,6 @@ const connectDB = async () => {
   }
 };
 
-
-javascript
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
@@ -378,15 +376,20 @@ const corsOptions = {
       'https://jemila2.github.io/cdclient-1',
       'http://localhost:3000',
       'http://localhost:3001',
-      'http://localhost:4173', // ← ADD THIS
+      'http://localhost:4173',
       'https://cdclient-1.onrender.com'
     ];
     
-    // Allow requests with no origin (like mobile apps, Postman, etc.)
-    if (!origin || allowedOrigins.includes(origin) || 
+ 
+    if (!origin || 
+        allowedOrigins.includes(origin) || 
         origin.includes('localhost') || 
         origin.includes('github.io') || 
-        origin.includes('render.com')) {
+        origin.includes('render.com') ||
+        // Allow local network IP addresses (192.168.x.x, 10.x.x.x, 172.16.x.x)
+        /^(http:\/\/)(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.).*$/.test(origin) ||
+        // Allow all origins in development environment
+        process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
       console.warn('⚠️ CORS blocked request from origin:', origin);
@@ -394,7 +397,7 @@ const corsOptions = {
     }
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'Origin'],
   credentials: true,
   optionsSuccessStatus: 200
 };
