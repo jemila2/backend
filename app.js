@@ -376,7 +376,7 @@ const corsOptions = {
       'https://jemila2.github.io/cdclient-1',
       'http://localhost:3000',
       'http://localhost:3001',
-      'http://localhost:4173',
+      'http://localhost:5173',
       'https://cdclient-1.onrender.com'
     ];
     
